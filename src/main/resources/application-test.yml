@@ -1,0 +1,45 @@
+# ═══════════════════════════════════════════════════════════
+# application-test.yml
+# Configuración para el perfil "test" de Spring Boot.
+# Se activa automáticamente cuando corrés: mvn test
+#
+# Usa H2 en memoria en lugar de PostgreSQL real,
+# así los tests funcionan en cualquier máquina sin BD.
+# ═══════════════════════════════════════════════════════════
+
+spring:
+  datasource:
+    url:               jdbc:h2:mem:prode_test_db;DB_CLOSE_DELAY=-1;MODE=PostgreSQL
+    driver-class-name: org.h2.Driver
+    username:          sa
+    password:
+
+  jpa:
+    hibernate:
+      ddl-auto: create-drop       # crea las tablas al iniciar y las borra al terminar
+    show-sql: false
+    defer-datasource-initialization: true
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.H2Dialect
+
+  sql:
+    init:
+      mode: never                 # no ejecutar data.sql en tests
+
+# JWT con valores fijos para tests (no variables de entorno)
+jwt:
+  secret: "test-secret-key-for-unit-tests-only-minimum-64-chars-required-here!!"
+  expiration-ms: 3600000          # 1 hora
+
+cors:
+  allowed-origins: http://localhost:3000
+
+rate-limit:
+  auth-requests-per-minute: 1000  # sin límite real en tests
+  api-requests-per-minute:  1000
+
+logging:
+  level:
+    root:                         WARN
+    ar.org.cpcemza.prodemundial:  DEBUG

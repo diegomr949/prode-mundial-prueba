@@ -1,0 +1,80 @@
+# ═══════════════════════════════════════════════════════════
+# application.yml — CPCE Mendoza · Prode Mundial 2026
+#
+# ⚠  NINGÚN SECRETO HARDCODEADO.
+#    Todos los valores sensibles vienen de variables de entorno.
+#    Ver .env.example para la lista completa.
+# ═══════════════════════════════════════════════════════════
+
+spring:
+  application:
+    name: prode-mundial
+
+  # ── Base de datos ──────────────────────────────────────────
+  datasource:
+    url:                  ${DB_URL}
+    username:             ${DB_USERNAME}
+    password:             ${DB_PASSWORD}
+    driver-class-name:    org.postgresql.Driver
+    hikari:
+      maximum-pool-size:  10
+      minimum-idle:       2
+      connection-timeout: 30000
+      idle-timeout:       600000
+      max-lifetime:       1800000
+      connection-test-query: SELECT 1
+
+  # ── JPA / Hibernate ────────────────────────────────────────
+  jpa:
+    hibernate:
+      ddl-auto: ${HIBERNATE_DDL_AUTO:validate}
+    show-sql: ${SHOW_SQL:false}
+    defer-datasource-initialization: true   # data.sql se ejecuta DESPUÉS de Hibernate
+    properties:
+      hibernate:
+        format_sql:   false
+        dialect:      org.hibernate.dialect.PostgreSQLDialect
+        jdbc:
+          batch_size: 20
+        order_inserts: true
+        order_updates: true
+
+  # ── Inicialización SQL (data.sql) ──────────────────────────
+  sql:
+    init:
+      mode: ${SQL_INIT_MODE:never}
+      # "always"  → primera vez (crea admin + equipos + partidos)
+      # "never"   → producción normal
+
+server:
+  port: ${PORT:8080}
+  tomcat:
+    max-threads:        200
+    accept-count:       100
+    connection-timeout: 20000
+  forward-headers-strategy: framework
+
+# ── JWT ───────────────────────────────────────────────────────
+# Generar secret con: openssl rand -hex 64
+jwt:
+  secret:        ${JWT_SECRET}
+  expiration-ms: ${JWT_EXPIRATION_MS:86400000}
+
+# ── CORS ──────────────────────────────────────────────────────
+cors:
+  allowed-origins: ${CORS_ALLOWED_ORIGINS}
+
+# ── Rate limiting ─────────────────────────────────────────────
+rate-limit:
+  auth-requests-per-minute: ${RATE_LIMIT_AUTH:10}
+  api-requests-per-minute:  ${RATE_LIMIT_API:120}
+
+# ── Logging ───────────────────────────────────────────────────
+logging:
+  level:
+    root:                          WARN
+    ar.org.cpcemza.prodemundial:   ${LOG_LEVEL:INFO}
+    org.springframework.security:  WARN
+    org.hibernate.SQL:             ${SQL_LOG_LEVEL:WARN}
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"

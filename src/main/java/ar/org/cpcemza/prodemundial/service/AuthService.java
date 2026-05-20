@@ -1,0 +1,53 @@
+package ar.org.cpcemza.prodemundial.service;
+
+import ar.org.cpcemza.prodemundial.config.JwtUtil;
+import ar.org.cpcemza.prodemundial.dto.AuthResponseDTO;
+import ar.org.cpcemza.prodemundial.dto.LoginRequestDTO;
+import ar.org.cpcemza.prodemundial.dto.RegistroRequestDTO;
+import ar.org.cpcemza.prodemundial.model.Usuario;
+import ar.org.cpcemza.prodemundial.repository.UsuarioRepository;
+import lombok.RequiredArgsConstructor;
+import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+@Service
+@RequiredArgsConstructor
+public class AuthService {
+
+    private final UsuarioRepository    usuarioRepository;
+    private final PasswordEncoder      passwordEncoder;
+    private final JwtUtil              jwtUtil;
+    private final AuthenticationManager authManager;
+
+    public AuthResponseDTO login(LoginRequestDTO dto) {
+        // Delega validación a Spring Security — lanza BadCredentialsException si falla
+        authManager.authenticate(
+                new UsernamePasswordAuthenticationToken(dto.getEmail(), dto.getPassword())
+        );
+        Usuario u = usuarioRepository.findByEmail(dto.getEmail()).orElseThrow();
+        return new AuthResponseDTO(
+                jwtUtil.generateToken(u.getEmail()),
+                u.getNombre(), u.getEmail(), u.getRol()
+        );
+    }
+
+    @Transactional
+    public AuthResponseDTO registro(RegistroRequestDTO dto) {
+        if (usuarioRepository.existsByEmail(dto.getEmail())) {
+            throw new IllegalArgumentException("El email ya está registrado.");
+        }
+        Usuario u = new Usuario();
+        u.setNombre(dto.getNombre());
+        u.setEmail(dto.getEmail());
+        u.setPasswordHash(passwordEncoder.encode(dto.getPassword()));
+        u.setRol("ROLE_USER");
+        usuarioRepository.save(u);
+        return new AuthResponseDTO(
+                jwtUtil.generateToken(u.getEmail()),
+                u.getNombre(), u.getEmail(), u.getRol()
+        );
+    }
+}
