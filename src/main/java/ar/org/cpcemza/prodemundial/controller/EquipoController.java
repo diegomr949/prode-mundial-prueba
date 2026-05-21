@@ -59,29 +59,6 @@ public class EquipoController {
     ══════════════════════════════════════════════════════ */
 
     /**
-     * POST /api/admin/equipos/{id}/jugadores
-     * Agrega un jugador a la plantilla del equipo.
-     *
-     * Body ejemplo:
-     * {
-     *   "nombre":      "Lionel Messi",
-     *   "posicion":    "DELANTERO",
-     *   "nroCamiseta": 10,
-     *   "esEstrella":  true
-     * }
-     */
-    @PostMapping("/api/admin/equipos/{id}/jugadores")
-    @PreAuthorize("hasAuthority('ROLE_ADMIN')")
-    public ResponseEntity<JugadorResponseDTO> agregarJugador(
-            @PathVariable Long id,
-            @Valid @RequestBody JugadorRequestDTO dto
-    ) {
-        return ResponseEntity
-                .status(HttpStatus.CREATED)
-                .body(equipoService.agregarJugador(id, dto));
-    }
-
-    /**
      * DELETE /api/admin/jugadores/{id}
      * Elimina un jugador de la plantilla.
      */
