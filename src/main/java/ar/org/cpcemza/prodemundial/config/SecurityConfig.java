@@ -125,7 +125,7 @@ public class SecurityConfig {
         DaoAuthenticationProvider p = new DaoAuthenticationProvider();
         p.setUserDetailsService(userDetailsService);
         p.setPasswordEncoder(passwordEncoder());
-        p.setHideUserNotFoundExceptions(true); // anti user-enumeration
+        p.setHideUserNotFoundExceptions(false); // anti user-enumeration
         return p;
     }
 
