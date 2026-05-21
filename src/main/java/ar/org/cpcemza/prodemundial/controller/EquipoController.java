@@ -53,19 +53,4 @@ public class EquipoController {
         return ResponseEntity.ok(equipoService.getJugadores(id));
     }
 
-    /* ══════════════════════════════════════════════════════
-       ADMIN — carga de plantillas
-       Solo ROLE_ADMIN puede agregar / eliminar jugadores.
-    ══════════════════════════════════════════════════════ */
-
-    /**
-     * DELETE /api/admin/jugadores/{id}
-     * Elimina un jugador de la plantilla.
-     */
-    @DeleteMapping("/api/admin/jugadores/{id}")
-    @PreAuthorize("hasAuthority('ROLE_ADMIN')")
-    public ResponseEntity<Map<String, String>> eliminarJugador(@PathVariable Long id) {
-        equipoService.eliminarJugador(id);
-        return ResponseEntity.ok(Map.of("mensaje", "Jugador eliminado correctamente."));
-    }
 }
