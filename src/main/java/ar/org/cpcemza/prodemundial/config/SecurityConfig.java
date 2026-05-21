@@ -42,57 +42,53 @@ public class SecurityConfig {
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
-                .cors(cors -> cors.configurationSource(corsConfigurationSource())) // 👈 Clave para enganchar el CORS
+                // 1. Configuraciones Globales de Red y CSRF
+                .cors(cors -> cors.configurationSource(corsConfigurationSource()))
                 .csrf(csrf -> csrf.disable())
+
+                // 2. Headers de seguridad HTTP (Optimizados para el CPCE y el Front externo)
+                .headers(h -> h
+                        .contentTypeOptions(c -> {})
+                        .xssProtection(x -> {})
+                        .frameOptions(f -> f.deny())
+                        .httpStrictTransportSecurity(hsts -> hsts
+                                .includeSubDomains(true)
+                                .maxAgeInSeconds(31_536_000)
+                        )
+                        .contentSecurityPolicy(csp -> csp.policyDirectives(
+                                "default-src 'self'; " +
+                                        "script-src 'self' 'unsafe-inline'; " +
+                                        "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; " +
+                                        "font-src 'self' https://fonts.gstatic.com; " +
+                                        "img-src 'self' data: https://flagcdn.com https://cpcemza.org.ar; " +
+                                        // 👈 Agregamos tu GitHub Pages acá para que la CSP le permita conectarse
+                                        "connect-src 'self' https://diegomr949.github.io; " +
+                                        "frame-ancestors 'none';"
+                        ))
+                        .referrerPolicy(r -> r
+                                .policy(ReferrerPolicyHeaderWriter.ReferrerPolicy.STRICT_ORIGIN_WHEN_CROSS_ORIGIN)
+                        )
+                        .permissionsPolicy(p -> p
+                                .policy("camera=(), microphone=(), geolocation=(), payment=()")
+                        )
+                )
+
+                // 3. UN SOLO bloque de Autorización por ruta (De lo más específico a lo general)
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/auth/**").permitAll()
+                        // Rutas públicas de Autenticación (Revisá si tus endpoints llevan el prefijo /api o no)
+                        .requestMatchers("/auth/**", "/api/auth/**").permitAll()
+
+                        // Rutas de administración protegidas por Rol
+                        .requestMatchers("/api/admin/**").hasAuthority("ROLE_ADMIN")
+
+                        // SIEMPRE AL FINAL: El candado para todo el resto de la aplicación
                         .anyRequest().authenticated()
                 )
 
-            // ── Headers de seguridad HTTP ──────────────────────────────
-            .headers(h -> h
-                .contentTypeOptions(c -> {})
-                .xssProtection(x -> {})
-                .frameOptions(f -> f.deny())
-                .httpStrictTransportSecurity(hsts -> hsts
-                    .includeSubDomains(true)
-                    .maxAgeInSeconds(31_536_000)
-                )
-                .contentSecurityPolicy(csp -> csp.policyDirectives(
-                    "default-src 'self'; " +
-                    "script-src 'self' 'unsafe-inline'; " +
-                    "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; " +
-                    "font-src 'self' https://fonts.gstatic.com; " +
-                    "img-src 'self' data: https://flagcdn.com https://cpcemza.org.ar; " +
-                    "connect-src 'self'; " +
-                    "frame-ancestors 'none';"
-                ))
-                .referrerPolicy(r -> r
-                    .policy(ReferrerPolicyHeaderWriter.ReferrerPolicy.STRICT_ORIGIN_WHEN_CROSS_ORIGIN)
-                )
-                .permissionsPolicy(p -> p
-                    .policy("camera=(), microphone=(), geolocation=(), payment=()")
-                )
-            )
-
-            // ── Autorización por ruta ──────────────────────────────────
-            .authorizeHttpRequests(auth -> auth
-                .requestMatchers(
-                    "/api/auth/login",
-                    "/api/auth/registro"
-                ).permitAll()
-                .requestMatchers("/api/admin/**").hasAuthority("ROLE_ADMIN")
-                .anyRequest().authenticated()
-            )
-
-            .authenticationProvider(authenticationProvider())
-
-            // Orden de filtros:
-            // 1. RateLimitFilter  → rechaza si se superó el límite
-            // 2. JwtAuthFilter    → valida el token y autentica
-            // 3. UsernamePasswordAuthenticationFilter (Spring, referencia)
-            .addFilterBefore(rateLimitFilter,  UsernamePasswordAuthenticationFilter.class)
-            .addFilterBefore(jwtAuthFilter,    UsernamePasswordAuthenticationFilter.class);
+                // 4. Proveedor de Autenticación y Filtros en orden secuencial estricto
+                .authenticationProvider(authenticationProvider())
+                .addFilterBefore(rateLimitFilter, UsernamePasswordAuthenticationFilter.class)
+                .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
     }
