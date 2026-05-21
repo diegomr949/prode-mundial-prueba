@@ -2,11 +2,14 @@
 FROM maven:3.9.6-eclipse-temurin-21 AS build
 WORKDIR /app
 
-# Copiamos solo el pom.xml primero para aprovechar la caché de Docker con las librerías
+# Forzar a la JVM de Maven a habilitar los procesadores de anotaciones (Lombok)
+ENV MAVEN_OPTS="-Dmaven.compiler.proc=full"
+
+# Copiamos el pom.xml primero para aprovechar la caché
 COPY pom.xml .
 RUN mvn dependency:go-offline -B
 
-# Ahora copiamos el código fuente y compilamos
+# Copiamos el código fuente y compilamos
 COPY src ./src
 RUN mvn clean package -DskipTests
 
