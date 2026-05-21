@@ -21,7 +21,7 @@ public class AuthenticatedUserResolver {
         String email = SecurityContextHolder.getContext()
                 .getAuthentication()
                 .getName();
-        return usuarioRepository.findByEmail(email)
+        return usuarioRepository.findByEmailIgnoreCase(email)
                 .orElseThrow(() -> new ResourceNotFoundException("Usuario autenticado", 0L));
     }
 }
