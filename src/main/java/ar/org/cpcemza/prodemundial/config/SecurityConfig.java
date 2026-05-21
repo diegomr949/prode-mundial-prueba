@@ -22,6 +22,7 @@ import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 import org.springframework.http.HttpMethod;
+import org.springframework.security.config.annotation.authentication.builders.AuthenticationManagerBuilder;
 
 import java.util.Arrays;
 
@@ -116,7 +117,7 @@ public class SecurityConfig {
         AuthenticationManagerBuilder authenticationManagerBuilder =
                 http.getSharedObject(AuthenticationManagerBuilder.class);
 
-        // 👈 Forzamos explícitamente a Spring a usar tu proveedor con UserDetailsService y BCrypt
+        // 👈 FORZAMOS explícitamente al Manager a usar tu proveedor real conectado a Neon
         authenticationManagerBuilder.authenticationProvider(authenticationProvider());
 
         return authenticationManagerBuilder.build();
