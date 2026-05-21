@@ -62,7 +62,6 @@ public class SecurityConfig {
                                         "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; " +
                                         "font-src 'self' https://fonts.gstatic.com; " +
                                         "img-src 'self' data: https://flagcdn.com https://cpcemza.org.ar; " +
-                                        // 👈 Agregamos tu GitHub Pages acá para que la CSP le permita conectarse
                                         "connect-src 'self' https://diegomr949.github.io; " +
                                         "frame-ancestors 'none';"
                         ))
@@ -74,19 +73,24 @@ public class SecurityConfig {
                         )
                 )
 
-                // 3. UN SOLO bloque de Autorización por ruta (De lo más específico a lo general)
+                // 3. UN SOLO bloque de Autorización por ruta (Modificado para producción)
                 .authorizeHttpRequests(auth -> auth
-                        // Rutas públicas de Autenticación (Revisá si tus endpoints llevan el prefijo /api o no)
-                        .requestMatchers("/auth/**", "/api/auth/**").permitAll()
+                        // 👈 LA CLAVE: Liberamos las rutas exactas y permitimos explícitamente navegación anónima en ellas
+                        .requestMatchers("/api/auth/login", "/api/auth/registro").permitAll()
+                        .requestMatchers("/api/auth/**", "/auth/**").permitAll()
 
                         // Rutas de administración protegidas por Rol
                         .requestMatchers("/api/admin/**").hasAuthority("ROLE_ADMIN")
 
-                        // SIEMPRE AL FINAL: El candado para todo el resto de la aplicación
+                        // Candado para todo el resto de la aplicación
                         .anyRequest().authenticated()
                 )
 
+                // 👈 ESCAPE DE COOKIES ANÓNIMAS: Evita que el navegador filtre el pre-login cruzado
+                .anonymous(AbstractHttpConfigurer::disable)
+
                 // 4. Proveedor de Autenticación y Filtros en orden secuencial estricto
+                .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS)) // Asegurar que sea stateless
                 .authenticationProvider(authenticationProvider())
                 .addFilterBefore(rateLimitFilter, UsernamePasswordAuthenticationFilter.class)
                 .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
