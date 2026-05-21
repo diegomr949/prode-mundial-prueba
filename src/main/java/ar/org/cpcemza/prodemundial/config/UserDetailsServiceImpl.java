@@ -19,12 +19,13 @@ public class UserDetailsServiceImpl implements UserDetailsService {
 
     @Override
     public UserDetails loadUserByUsername(String email) throws UsernameNotFoundException {
-        return usuarioRepository.findByEmail(email)
+        return usuarioRepository.findByEmailIgnoreCase(email)
                 .map(u -> new User(
                         u.getEmail(),
                         u.getPasswordHash(),
                         List.of(new SimpleGrantedAuthority(u.getRol()))
                 ))
-                .orElseThrow(() -> new UsernameNotFoundException("Usuario no encontrado: " + email));
+                // 👈 REPLICA ESTA LÍNEA REAL (Lanza la excepción nativa de Spring Security)
+                .orElseThrow(() -> new UsernameNotFoundException("Usuario no encontrado con email: " + email));
     }
 }

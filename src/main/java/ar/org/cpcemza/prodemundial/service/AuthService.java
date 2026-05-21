@@ -4,6 +4,7 @@ import ar.org.cpcemza.prodemundial.config.JwtUtil;
 import ar.org.cpcemza.prodemundial.dto.AuthResponseDTO;
 import ar.org.cpcemza.prodemundial.dto.LoginRequestDTO;
 import ar.org.cpcemza.prodemundial.dto.RegistroRequestDTO;
+import ar.org.cpcemza.prodemundial.exception.ResourceNotFoundException;
 import ar.org.cpcemza.prodemundial.model.Usuario;
 import ar.org.cpcemza.prodemundial.repository.UsuarioRepository;
 import lombok.RequiredArgsConstructor;
@@ -26,7 +27,11 @@ public class AuthService {
         authManager.authenticate(
                 new UsernamePasswordAuthenticationToken(dto.getEmail(), dto.getPassword())
         );
-        Usuario u = usuarioRepository.findByEmail(dto.getEmail()).orElseThrow();
+
+        // 👈 REPLICA ESTA LÍNEA REAL (Usa tu manejador global de errores)
+        Usuario u = usuarioRepository.findByEmailIgnoreCase(dto.getEmail())
+                .orElseThrow(() -> new ResourceNotFoundException("Usuario", 0L));
+
         return toAuthResponse(u);
     }
 
