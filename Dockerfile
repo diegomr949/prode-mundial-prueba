@@ -22,4 +22,4 @@ COPY --from=build /app/target/prode-mundial-1.0.0.jar app.jar
 ENV JAVA_OPTS="-Xmx384m -Xms384m"
 
 EXPOSE 8080
-ENTRYPOINT ["sh", "-c", "java $JAVA_OPTS -jar app.jar"]
+ENTRYPOINT ["java", "-Dserver.port=${PORT}", "-jar", "/app/app.jar"]

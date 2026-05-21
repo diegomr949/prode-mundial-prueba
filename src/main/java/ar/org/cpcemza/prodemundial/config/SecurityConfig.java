@@ -21,6 +21,7 @@ import org.springframework.security.web.header.writers.ReferrerPolicyHeaderWrite
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
+import org.springframework.http.HttpMethod;
 
 import java.util.Arrays;
 
@@ -52,10 +53,15 @@ public class SecurityConfig {
 
                 // 4. Mapa de Autorizaciones (Se eliminó la duplicación y se ordenó)
                 .authorizeHttpRequests(auth -> auth
+                        // 👈 REGLA CRÍTICA: Liberar todos los Preflights de CORS del navegador
+                        .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
+
                         // Liberar de forma explícita y total las rutas de autenticación
                         .requestMatchers("/api/auth/**", "/auth/**").permitAll()
+
                         // Rutas protegidas de administración
                         .requestMatchers("/api/admin/**").hasAuthority("ROLE_ADMIN")
+
                         // Cualquier otra petición requiere token válido
                         .anyRequest().authenticated()
                 )
