@@ -24,23 +24,18 @@ public class AdminController {
     private final CalculoPuntosService calculoPuntosService;
     private final EquipoService        equipoService;
 
-    /* ══════════════════════════════════════════════════════
-       USUARIOS
-    ══════════════════════════════════════════════════════ */
+    /* ── Usuarios ─────────────────────────────────────── */
 
-    /** GET /api/admin/usuarios — lista todos con sus stats */
     @GetMapping("/usuarios")
     public ResponseEntity<List<DashboardUsuarioDTO>> getUsuarios() {
         return ResponseEntity.ok(adminService.getTodosLosUsuarios());
     }
 
-    /** GET /api/admin/usuarios/{id}/dashboard — detalle completo */
     @GetMapping("/usuarios/{id}/dashboard")
     public ResponseEntity<DashboardUsuarioDTO> getDashboard(@PathVariable Long id) {
         return ResponseEntity.ok(adminService.getDashboardUsuario(id));
     }
 
-    /** PUT /api/admin/usuarios/{id}/reset-password */
     @PutMapping("/usuarios/{id}/reset-password")
     public ResponseEntity<Map<String, String>> resetPassword(
             @PathVariable Long id,
@@ -50,15 +45,33 @@ public class AdminController {
         return ResponseEntity.ok(Map.of("mensaje", "Contraseña actualizada correctamente."));
     }
 
-    /* ══════════════════════════════════════════════════════
-       RESULTADOS DE PARTIDOS
-    ══════════════════════════════════════════════════════ */
+    /**
+     * PUT /api/admin/usuarios/{id}/area
+     * Asigna o corrige el área de un usuario.
+     * Body: { "area": "Contabilidad" }
+     * Para limpiarla: { "area": null } o { "area": "" }
+     */
+    @PutMapping("/usuarios/{id}/area")
+    public ResponseEntity<Map<String, String>> actualizarArea(
+            @PathVariable Long id,
+            @Valid @RequestBody ActualizarAreaRequestDTO dto
+    ) {
+        adminService.actualizarArea(id, dto.getArea());
+        return ResponseEntity.ok(Map.of("mensaje", "Área actualizada correctamente."));
+    }
 
     /**
-     * PUT /api/admin/partidos/{id}/resultado
-     * Registra el resultado real y dispara el cálculo de puntos
-     * para todos los usuarios que apostaron en ese partido.
+     * GET /api/admin/areas
+     * Lista todas las áreas distintas registradas.
+     * Útil para cargar el dropdown de filtros en el frontend.
      */
+    @GetMapping("/areas")
+    public ResponseEntity<List<String>> getAreas() {
+        return ResponseEntity.ok(adminService.getAreas());
+    }
+
+    /* ── Resultados ───────────────────────────────────── */
+
     @PutMapping("/partidos/{id}/resultado")
     public ResponseEntity<Map<String, String>> cargarResultado(
             @PathVariable Long id,
@@ -68,46 +81,34 @@ public class AdminController {
         return ResponseEntity.ok(Map.of("mensaje", "Resultado procesado y puntos calculados."));
     }
 
-    /* ══════════════════════════════════════════════════════
-       CLASIFICACIÓN (versión admin — incluye email)
-    ══════════════════════════════════════════════════════ */
-
-    /** GET /api/admin/clasificacion */
-    @GetMapping("/clasificacion")
-    public ResponseEntity<List<ClasificacionDTO>> getClasificacion() {
-        return ResponseEntity.ok(adminService.getClasificacion());
-    }
-
-    /* ══════════════════════════════════════════════════════
-       JUGADORES / PLANTILLAS
-    ══════════════════════════════════════════════════════ */
+    /* ── Clasificación ────────────────────────────────── */
 
     /**
-     * POST /api/admin/equipos/{id}/jugadores
-     * Agrega un jugador a la plantilla del equipo.
-     *
-     * Body ejemplo:
-     * {
-     *   "nombre":      "Lionel Messi",
-     *   "posicion":    "DELANTERO",
-     *   "nroCamiseta": 10,
-     *   "esEstrella":  true
-     * }
+     * GET /api/admin/clasificacion
+     * GET /api/admin/clasificacion?area=Contabilidad
+     * Devuelve el ranking general o filtrado por área.
      */
+    @GetMapping("/clasificacion")
+    public ResponseEntity<List<ClasificacionDTO>> getClasificacion(
+            @RequestParam(required = false) String area
+    ) {
+        List<ClasificacionDTO> result = (area != null && !area.isBlank())
+                ? adminService.getClasificacionPorArea(area)
+                : adminService.getClasificacion();
+        return ResponseEntity.ok(result);
+    }
+
+    /* ── Jugadores ────────────────────────────────────── */
+
     @PostMapping("/equipos/{id}/jugadores")
     public ResponseEntity<JugadorResponseDTO> agregarJugador(
             @PathVariable Long id,
             @Valid @RequestBody JugadorRequestDTO dto
     ) {
-        return ResponseEntity
-                .status(HttpStatus.CREATED)
+        return ResponseEntity.status(HttpStatus.CREATED)
                 .body(equipoService.agregarJugador(id, dto));
     }
 
-    /**
-     * DELETE /api/admin/jugadores/{id}
-     * Elimina un jugador de la plantilla.
-     */
     @DeleteMapping("/jugadores/{id}")
     public ResponseEntity<Map<String, String>> eliminarJugador(@PathVariable Long id) {
         equipoService.eliminarJugador(id);

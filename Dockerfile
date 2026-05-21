@@ -1,7 +1,13 @@
 # Paso 1: Compilar la aplicación usando Maven y Java 21
-FROM maven:3.9.6-eclipse-temurin-21-alpine AS build
+FROM maven:3.9.6-eclipse-temurin-21 AS build
 WORKDIR /app
-COPY . .
+
+# Copiamos solo el pom.xml primero para aprovechar la caché de Docker con las librerías
+COPY pom.xml .
+RUN mvn dependency:go-offline -B
+
+# Ahora copiamos el código fuente y compilamos
+COPY src ./src
 RUN mvn clean package -DskipTests
 
 # Paso 2: Crear la imagen final de producción, ultra liviana

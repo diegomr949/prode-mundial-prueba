@@ -10,4 +10,5 @@ public class AuthResponseDTO {
     private String nombre;
     private String email;
     private String rol;
+    private String area;   // puede ser null si no fue asignada aún
 }

@@ -29,7 +29,7 @@ public class AdminService {
     private final PartidoRepository    partidoRepository;
     private final PasswordEncoder      passwordEncoder;
 
-    /* ── Reset de contraseña por admin ─────────────────── */
+    /* ── Reset contraseña ───────────────────────────────── */
     @Transactional
     public void resetPassword(Long usuarioId, String nuevaPassword) {
         Usuario u = usuarioRepository.findById(usuarioId)
@@ -38,7 +38,16 @@ public class AdminService {
         usuarioRepository.save(u);
     }
 
-    /* ── Dashboard de usuario ───────────────────────────── */
+    /* ── Actualizar área (nuevo) ────────────────────────── */
+    @Transactional
+    public void actualizarArea(Long usuarioId, String area) {
+        Usuario u = usuarioRepository.findById(usuarioId)
+                .orElseThrow(() -> new ResourceNotFoundException("Usuario", usuarioId));
+        u.setArea(area != null && !area.isBlank() ? area.trim() : null);
+        usuarioRepository.save(u);
+    }
+
+    /* ── Dashboard individual ───────────────────────────── */
     @Transactional(readOnly = true)
     public DashboardUsuarioDTO getDashboardUsuario(Long usuarioId) {
         Usuario u = usuarioRepository.findById(usuarioId)
@@ -62,13 +71,14 @@ public class AdminService {
 
         return new DashboardUsuarioDTO(
                 u.getId(), u.getNombre(), u.getEmail(), u.getRol(),
+                u.getArea(),                                          // ← area
                 u.getPuntosTotales(), u.getPlenosTotales(), u.getFechaRegistro(),
                 predicciones.size(), (int)(total - predicciones.size()),
                 predsDTO
         );
     }
 
-    /* ── Lista todos los usuarios ───────────────────────── */
+    /* ── Todos los usuarios ─────────────────────────────── */
     @Transactional(readOnly = true)
     public List<DashboardUsuarioDTO> getTodosLosUsuarios() {
         return usuarioRepository.findAll().stream()
@@ -76,11 +86,27 @@ public class AdminService {
                 .collect(Collectors.toList());
     }
 
-    /* ── Clasificación general ──────────────────────────── */
+    /* ── Clasificación general con filtro opcional por área ─ */
     @Transactional(readOnly = true)
     public List<ClasificacionDTO> getClasificacion() {
-        List<Usuario> usuarios = usuarioRepository
-                .findAllByOrderByPuntosTotalesDescPlenosTotalesDescFechaRegistroAsc();
+        return buildClasificacion(
+                usuarioRepository.findAllByOrderByPuntosTotalesDescPlenosTotalesDescFechaRegistroAsc()
+        );
+    }
+
+    @Transactional(readOnly = true)
+    public List<ClasificacionDTO> getClasificacionPorArea(String area) {
+        return buildClasificacion(
+                usuarioRepository.findByAreaIgnoreCaseOrderByPuntosTotalesDescPlenosTotalesDescFechaRegistroAsc(area)
+        );
+    }
+
+    @Transactional(readOnly = true)
+    public List<String> getAreas() {
+        return usuarioRepository.findDistinctAreas();
+    }
+
+    private List<ClasificacionDTO> buildClasificacion(List<Usuario> usuarios) {
         long finalizados = partidoRepository.countByEstado(EstadoPartido.FINALIZADO);
         AtomicInteger pos = new AtomicInteger(1);
 
@@ -90,8 +116,11 @@ public class AdminService {
                     ? Math.round((double) u.getPlenosTotales() / finalizados * 1000.0) / 10.0
                     : 0.0;
             return new ClasificacionDTO(
-                    pos.getAndIncrement(), u.getId(), u.getNombre(), u.getEmail(),
-                    u.getPuntosTotales(), u.getPlenosTotales(), predichos, pct
+                    pos.getAndIncrement(),
+                    u.getId(), u.getNombre(), u.getEmail(),
+                    u.getArea(),                                      // ← area
+                    u.getPuntosTotales(), u.getPlenosTotales(),
+                    predichos, pct
             );
         }).collect(Collectors.toList());
     }

@@ -17,21 +17,17 @@ import org.springframework.transaction.annotation.Transactional;
 @RequiredArgsConstructor
 public class AuthService {
 
-    private final UsuarioRepository    usuarioRepository;
-    private final PasswordEncoder      passwordEncoder;
-    private final JwtUtil              jwtUtil;
+    private final UsuarioRepository     usuarioRepository;
+    private final PasswordEncoder       passwordEncoder;
+    private final JwtUtil               jwtUtil;
     private final AuthenticationManager authManager;
 
     public AuthResponseDTO login(LoginRequestDTO dto) {
-        // Delega validación a Spring Security — lanza BadCredentialsException si falla
         authManager.authenticate(
                 new UsernamePasswordAuthenticationToken(dto.getEmail(), dto.getPassword())
         );
         Usuario u = usuarioRepository.findByEmail(dto.getEmail()).orElseThrow();
-        return new AuthResponseDTO(
-                jwtUtil.generateToken(u.getEmail()),
-                u.getNombre(), u.getEmail(), u.getRol()
-        );
+        return toAuthResponse(u);
     }
 
     @Transactional
@@ -44,10 +40,21 @@ public class AuthService {
         u.setEmail(dto.getEmail());
         u.setPasswordHash(passwordEncoder.encode(dto.getPassword()));
         u.setRol("ROLE_USER");
+        // area es opcional — puede llegar null si el usuario no la completó
+        u.setArea(dto.getArea() != null && !dto.getArea().isBlank()
+                ? dto.getArea().trim()
+                : null);
         usuarioRepository.save(u);
+        return toAuthResponse(u);
+    }
+
+    private AuthResponseDTO toAuthResponse(Usuario u) {
         return new AuthResponseDTO(
                 jwtUtil.generateToken(u.getEmail()),
-                u.getNombre(), u.getEmail(), u.getRol()
+                u.getNombre(),
+                u.getEmail(),
+                u.getRol(),
+                u.getArea()    // null si no fue asignada
         );
     }
 }

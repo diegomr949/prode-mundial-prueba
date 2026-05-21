@@ -7,6 +7,7 @@ import lombok.Data;
 
 @Data
 public class RegistroRequestDTO {
+
     @NotBlank(message = "El nombre es obligatorio")
     @Size(min = 2, max = 80)
     private String nombre;
@@ -18,4 +19,12 @@ public class RegistroRequestDTO {
     @NotBlank(message = "La contraseña es obligatoria")
     @Size(min = 6, message = "La contraseña debe tener al menos 6 caracteres")
     private String password;
+
+    /**
+     * Área/sector — opcional en el registro.
+     * Si el usuario no la completa queda null.
+     * El admin puede asignarla o corregirla desde el panel.
+     */
+    @Size(max = 100, message = "El área no puede superar los 100 caracteres")
+    private String area;
 }

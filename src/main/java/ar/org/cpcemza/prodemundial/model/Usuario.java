@@ -27,6 +27,15 @@ public class Usuario {
     @Column(nullable = false)
     private String nombre;
 
+    /**
+     * Área o sector del CPCE al que pertenece el usuario.
+     * Nullable porque los usuarios cargados via SQL pueden no tenerla,
+     * y el admin puede asignarla después.
+     * Ejemplos: "Contabilidad", "Sistemas", "Presidencia", "Legales"
+     */
+    @Column(length = 100)
+    private String area;
+
     @Column(name = "puntos_totales", columnDefinition = "integer default 0")
     private Integer puntosTotales = 0;
 

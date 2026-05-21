@@ -10,6 +10,7 @@ public class ClasificacionDTO {
     private Long    usuarioId;
     private String  nombre;
     private String  email;
+    private String  area;          // para mostrar en ranking y filtrar por sector
     private Integer puntosTotales;
     private Integer plenosTotales;
     private Integer partidosPredichos;
