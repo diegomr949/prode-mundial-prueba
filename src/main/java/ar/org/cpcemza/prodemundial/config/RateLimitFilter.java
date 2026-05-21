@@ -49,11 +49,18 @@ public class RateLimitFilter extends OncePerRequestFilter {
                                     FilterChain chain)
             throws ServletException, IOException {
 
+        // 👈 LA CLAVE: Si es un Preflight (OPTIONS), dejar pasar de largo de inmediato
+        if ("OPTIONS".equalsIgnoreCase(request.getMethod())) {
+            chain.doFilter(request, response);
+            return;
+        }
+
         final String ip   = getClientIp(request);
         final String path = request.getRequestURI();
 
         // Aplicar rate limit diferenciado por tipo de endpoint
-        if (path.startsWith("/api/auth/")) {
+        // (Asegurate de que coincida con cómo mapeaste tus controladores)
+        if (path.startsWith("/api/auth/") || path.startsWith("/auth/")) {
             if (!isAllowed(ip, authBuckets, authRequestsPerMinute)) {
                 log.warn("[RateLimit] Auth bloqueado - IP: {} Path: {}", ip, path);
                 rejectRequest(response, "Demasiados intentos. Esperá 1 minuto e intentá de nuevo.");
@@ -64,7 +71,7 @@ public class RateLimitFilter extends OncePerRequestFilter {
                 log.warn("[RateLimit] API bloqueado - IP: {} Path: {}", ip, path);
                 rejectRequest(response, "Límite de solicitudes alcanzado. Intentá más tarde.");
                 return;
-        }
+            }
         }
 
         chain.doFilter(request, response);
