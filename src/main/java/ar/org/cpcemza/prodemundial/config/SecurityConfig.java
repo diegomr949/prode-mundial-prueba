@@ -1,14 +1,11 @@
 package ar.org.cpcemza.prodemundial.config;
 
 import lombok.RequiredArgsConstructor;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.http.HttpMethod;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.AuthenticationProvider;
 import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
-import org.springframework.security.config.annotation.authentication.builders.AuthenticationManagerBuilder;
 import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
@@ -25,7 +22,6 @@ import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
 import java.util.Arrays;
-import java.util.List;
 
 @Configuration
 @EnableWebSecurity
@@ -35,63 +31,38 @@ public class SecurityConfig {
 
     private final JwtAuthFilter            jwtAuthFilter;
     private final UserDetailsServiceImpl   userDetailsService;
-    private final RateLimitFilter          rateLimitFilter;   // ← inyectado
-
-    @Value("${cors.allowed-origins}")
-    private String allowedOrigins;
+    private final RateLimitFilter          rateLimitFilter;
 
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
-                // 1. Configuraciones Globales de Red y CSRF
+                // 1. Desactivar CSRF y habilitar CORS nativo en la cabecera del filtro
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
-                .csrf(csrf -> csrf.disable())
+                .csrf(AbstractHttpConfigurer::disable)
 
-                // 2. Headers de seguridad HTTP (Optimizados para el CPCE y el Front externo)
-                .headers(h -> h
-                        .contentTypeOptions(c -> {})
-                        .xssProtection(x -> {})
+                // 2. Desactivar el manejo de sesiones (Forzar Stateless absoluto para JWT)
+                .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+
+                // 3. Headers de seguridad HTTP adaptados para conexiones externas
+                .headers(headers -> headers
                         .frameOptions(f -> f.deny())
-                        .httpStrictTransportSecurity(hsts -> hsts
-                                .includeSubDomains(true)
-                                .maxAgeInSeconds(31_536_000)
-                        )
-                        .contentSecurityPolicy(csp -> csp.policyDirectives(
-                                "default-src 'self'; " +
-                                        "script-src 'self' 'unsafe-inline'; " +
-                                        "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; " +
-                                        "font-src 'self' https://fonts.gstatic.com; " +
-                                        "img-src 'self' data: https://flagcdn.com https://cpcemza.org.ar; " +
-                                        "connect-src 'self' https://diegomr949.github.io; " +
-                                        "frame-ancestors 'none';"
-                        ))
-                        .referrerPolicy(r -> r
-                                .policy(ReferrerPolicyHeaderWriter.ReferrerPolicy.STRICT_ORIGIN_WHEN_CROSS_ORIGIN)
-                        )
-                        .permissionsPolicy(p -> p
-                                .policy("camera=(), microphone=(), geolocation=(), payment=()")
-                        )
+                        .referrerPolicy(r -> r.policy(ReferrerPolicyHeaderWriter.ReferrerPolicy.STRICT_ORIGIN_WHEN_CROSS_ORIGIN))
                 )
 
-                // 3. UN SOLO bloque de Autorización por ruta (Modificado para producción)
+                // 4. Mapa de Autorizaciones (Se eliminó la duplicación y se ordenó)
                 .authorizeHttpRequests(auth -> auth
-                        // 👈 LA CLAVE: Liberamos las rutas exactas y permitimos explícitamente navegación anónima en ellas
-                        .requestMatchers("/api/auth/login", "/api/auth/registro").permitAll()
+                        // Liberar de forma explícita y total las rutas de autenticación
                         .requestMatchers("/api/auth/**", "/auth/**").permitAll()
-
-                        // Rutas de administración protegidas por Rol
+                        // Rutas protegidas de administración
                         .requestMatchers("/api/admin/**").hasAuthority("ROLE_ADMIN")
-
-                        // Candado para todo el resto de la aplicación
+                        // Cualquier otra petición requiere token válido
                         .anyRequest().authenticated()
                 )
 
-                // 👈 ESCAPE DE COOKIES ANÓNIMAS: Evita que el navegador filtre el pre-login cruzado
-                .anonymous(AbstractHttpConfigurer::disable)
-
-                // 4. Proveedor de Autenticación y Filtros en orden secuencial estricto
-                .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS)) // Asegurar que sea stateless
+                // 5. Inyección del proveedor de datos
                 .authenticationProvider(authenticationProvider())
+
+                // 6. Orden estricto de filtros interceptores
                 .addFilterBefore(rateLimitFilter, UsernamePasswordAuthenticationFilter.class)
                 .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
 
@@ -102,7 +73,7 @@ public class SecurityConfig {
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
 
-        // Permitimos explícitamente tu front de GitHub Pages y entornos locales de desarrollo
+        // Orígenes permitidos sin depender de variables externas
         configuration.setAllowedOrigins(Arrays.asList(
                 "https://diegomr949.github.io",
                 "http://localhost:3000",
@@ -110,34 +81,31 @@ public class SecurityConfig {
         ));
 
         configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS"));
-        configuration.setAllowedHeaders(Arrays.asList("Authorization", "Content-Type", "X-Requested-With"));
+        configuration.setAllowedHeaders(Arrays.asList("Authorization", "Content-Type", "Cache-Control", "X-Requested-With"));
         configuration.setExposedHeaders(Arrays.asList("Authorization"));
         configuration.setAllowCredentials(true);
 
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
-        source.registerCorsConfiguration("/**", configuration); // Aplica a todos los endpoints
+        source.registerCorsConfiguration("/**", configuration);
         return source;
     }
-
 
     @Bean
     public AuthenticationProvider authenticationProvider() {
         DaoAuthenticationProvider p = new DaoAuthenticationProvider();
         p.setUserDetailsService(userDetailsService);
         p.setPasswordEncoder(passwordEncoder());
-        p.setHideUserNotFoundExceptions(false); // anti user-enumeration
+        p.setHideUserNotFoundExceptions(false); // Revelará errores de usuario real en logs de Render
         return p;
     }
 
     @Bean
     public PasswordEncoder passwordEncoder() {
-        return new BCryptPasswordEncoder(12);
+        return new BCryptPasswordEncoder(12); // Coincide con los 12 rounds de Neon
     }
 
     @Bean
-    public AuthenticationManager authenticationManager(HttpSecurity http) throws Exception {
-        return http.getSharedObject(AuthenticationManagerBuilder.class)
-                .authenticationProvider(authenticationProvider()) // 👈 Le inyectamos tu proveedor explícito
-                .build();
+    public AuthenticationManager authenticationManager(AuthenticationConfiguration cfg) throws Exception {
+        return cfg.getAuthenticationManager();
     }
 }
