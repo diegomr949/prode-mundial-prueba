@@ -102,18 +102,16 @@ public class SecurityConfig {
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration config = new CorsConfiguration();
 
-        // 1. HARDCODEAMOS tu URL de Cloudflare exacta (¡SIN barra al final!)
+        // ACÁ ESTÁ LA CLAVE: Agregamos el dominio exacto que te dio Cloudflare
         config.setAllowedOrigins(List.of(
-                "https://prodecpceprueba1.pages.dev",
+                "https://prodecpceprueba1.diegomr949.workers.dev", // 👈 Tu URL real actual
+                "https://prodecpceprueba1.pages.dev",              // Por si acaso usás esta después
                 "http://localhost:8080",
                 "http://localhost:3000"
         ));
 
         config.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
-
-        // 2. Permitimos todas las cabeceras temporalmente para que no bloquee nada
         config.setAllowedHeaders(List.of("*"));
-
         config.setExposedHeaders(List.of("Set-Cookie"));
         config.setAllowCredentials(true);
         config.setMaxAge(3600L);
