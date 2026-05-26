@@ -8,6 +8,7 @@ import org.springframework.http.HttpMethod;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.AuthenticationProvider;
 import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
+import org.springframework.security.config.annotation.authentication.builders.AuthenticationManagerBuilder;
 import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
@@ -147,8 +148,13 @@ public class SecurityConfig {
     }
 
     @Bean
-    public AuthenticationManager authenticationManager(AuthenticationConfiguration cfg)
-            throws Exception {
-        return cfg.getAuthenticationManager();
+    public AuthenticationManager authenticationManager(HttpSecurity http) throws Exception {
+        AuthenticationManagerBuilder authenticationManagerBuilder =
+                http.getSharedObject(AuthenticationManagerBuilder.class);
+
+        // Forzamos explícitamente a usar tu proveedor conectado a Neon
+        authenticationManagerBuilder.authenticationProvider(authenticationProvider());
+
+        return authenticationManagerBuilder.build();
     }
 }

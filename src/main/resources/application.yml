@@ -81,3 +81,10 @@ logging:
     org.hibernate.SQL:             ${SQL_LOG_LEVEL:WARN}
   pattern:
     console: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"
+
+    server:
+      servlet:
+        session:
+          cookie:
+            same-site: none  # Permite que la cookie viaje a dominios cruzados
+            secure: true     # Obliga a que viaje solo por HTTPS (Render ya lo tiene)
