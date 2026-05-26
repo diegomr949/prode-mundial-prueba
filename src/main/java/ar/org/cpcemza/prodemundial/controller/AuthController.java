@@ -47,17 +47,13 @@ public class AuthController {
      */
     @GetMapping("/me")
     public ResponseEntity<?> me(@AuthenticationPrincipal UserDetails userDetails) {
-        // 1. Si no hay sesión, devolvemos 401 limpio para que el Frontend sepa que debe mostrar el Login
+        // Si no hay sesión en la petición, devolvemos 401
         if (userDetails == null) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("No hay sesión activa");
         }
 
-        // 2. Si hay sesión, buscamos al usuario normal (ajustá esto a como lo tenías)
-        // Ejemplo:
-        // AuthResponseDTO response = authService.obtenerDatosUsuario(userDetails.getUsername());
-        // return ResponseEntity.ok(response);
-
-        return ResponseEntity.ok(userDetails); // Reemplazalo por tu lógica original
+        // Si hay sesión, devolvemos los datos
+        return ResponseEntity.ok(userDetails);
     }
 
     /**
