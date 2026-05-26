@@ -1,25 +1,49 @@
-# Paso 1: Compilar la aplicación usando Maven y Java 21
-FROM maven:3.9.6-eclipse-temurin-21 AS build
+# ═══════════════════════════════════════════════════════════
+# Dockerfile — Prode Mundial 2026 · CPCE Mendoza
+#
+# Build en 2 etapas:
+#   1. maven:3.9-eclipse-temurin-21 → compila y genera el .jar
+#   2. eclipse-temurin:21-jre-jammy → imagen final liviana (~200MB)
+#
+# Render detecta el Dockerfile automáticamente.
+# No hace falta configurar Build Command ni Start Command.
+# ═══════════════════════════════════════════════════════════
+
+# ── ETAPA 1: compilar ────────────────────────────────────
+FROM maven:3.9-eclipse-temurin-21 AS build
+
 WORKDIR /app
 
-# Forzar a la JVM de Maven a habilitar los procesadores de anotaciones (Lombok)
-ENV MAVEN_OPTS="-Dmaven.compiler.proc=full"
-
-# Copiamos el pom.xml primero para aprovechar la caché
+# Copiar pom.xml primero para cachear dependencias
+# (si solo cambia código, Maven no re-descarga todo)
 COPY pom.xml .
-RUN mvn dependency:go-offline -B
+RUN mvn dependency:go-offline -q
 
-# Copiamos el código fuente y compilamos
+# Copiar el código fuente y compilar
 COPY src ./src
-RUN mvn clean package -DskipTests
+RUN mvn clean package -DskipTests -q
 
-# Paso 2: Crear la imagen final de producción, ultra liviana
-FROM eclipse-temurin:21-jre-alpine
+# ── ETAPA 2: imagen final ────────────────────────────────
+FROM eclipse-temurin:21-jre-jammy
+
 WORKDIR /app
+
+# Usuario no-root por seguridad
+RUN groupadd -r prode && useradd -r -g prode prode
+USER prode
+
+# Copiar solo el .jar generado
 COPY --from=build /app/target/prode-mundial-1.0.0.jar app.jar
 
-# Configuración de memoria optimizada para la capa gratuita de Render
-ENV JAVA_OPTS="-Xmx384m -Xms384m"
+# Flags de JVM para el plan free de Render (512MB RAM):
+# · UseContainerSupport: respeta el límite de RAM del container
+# · MaxRAMPercentage:    usa hasta el 75% del heap (384MB de 512)
+# · TieredCompilation con nivel 1: arranque más rápido
+ENTRYPOINT ["java", \
+  "-XX:+UseContainerSupport", \
+  "-XX:MaxRAMPercentage=75.0", \
+  "-XX:TieredStopAtLevel=1", \
+  "-Djava.security.egd=file:/dev/./urandom", \
+  "-jar", "app.jar"]
 
 EXPOSE 8080
-ENTRYPOINT ["sh", "-c", "java $JAVA_OPTS -jar app.jar"]

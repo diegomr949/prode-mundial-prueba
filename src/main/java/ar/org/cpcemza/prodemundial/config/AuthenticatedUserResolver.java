@@ -9,7 +9,8 @@ import org.springframework.stereotype.Component;
 
 /**
  * Extrae el Usuario autenticado del SecurityContext.
- * Usado en todos los controllers que necesitan el usuario actual.
+ * Con sesiones, Spring mantiene el contexto automáticamente
+ * sin necesidad de validar ningún token.
  */
 @Component
 @RequiredArgsConstructor
@@ -22,6 +23,8 @@ public class AuthenticatedUserResolver {
                 .getAuthentication()
                 .getName();
         return usuarioRepository.findByEmail(email)
-                .orElseThrow(() -> new ResourceNotFoundException("Usuario autenticado", 0L));
+                .orElseThrow(() ->
+                        new ResourceNotFoundException("Usuario autenticado", 0L)
+                );
     }
 }

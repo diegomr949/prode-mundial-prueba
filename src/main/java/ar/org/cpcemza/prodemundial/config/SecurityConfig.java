@@ -1,6 +1,7 @@
 package ar.org.cpcemza.prodemundial.config;
 
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.authentication.AuthenticationManager;
@@ -21,7 +22,7 @@ import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
-import java.util.Arrays;
+import java.util.List;
 
 @Configuration
 @EnableWebSecurity
@@ -29,64 +30,70 @@ import java.util.Arrays;
 @RequiredArgsConstructor
 public class SecurityConfig {
 
-    private final JwtAuthFilter            jwtAuthFilter;
-    private final UserDetailsServiceImpl   userDetailsService;
-    private final RateLimitFilter          rateLimitFilter;
+    private final UserDetailsServiceImpl userDetailsService;
+    private final RateLimitFilter        rateLimitFilter;
+
+    @Value("${cors.allowed-origins}")
+    private String allowedOrigins;
 
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
-                // 1. Desactivar CSRF y habilitar CORS nativo en la cabecera del filtro
-                .cors(cors -> cors.configurationSource(corsConfigurationSource()))
                 .csrf(AbstractHttpConfigurer::disable)
-
-                // 2. Desactivar el manejo de sesiones (Forzar Stateless absoluto para JWT)
-                .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-
-                // 3. Headers de seguridad HTTP adaptados para conexiones externas
-                .headers(headers -> headers
-                        .frameOptions(f -> f.deny())
-                        .referrerPolicy(r -> r.policy(ReferrerPolicyHeaderWriter.ReferrerPolicy.STRICT_ORIGIN_WHEN_CROSS_ORIGIN))
+                .cors(cors -> cors.configurationSource(corsConfigurationSource()))
+                .sessionManagement(s -> s
+                        .sessionCreationPolicy(SessionCreationPolicy.IF_REQUIRED)
+                        .maximumSessions(3)
+                        .expiredUrl("/api/auth/expirada")
                 )
-
-                // 4. Mapa de Autorizaciones (Se eliminó la duplicación y se ordenó)
+                .headers(h -> h
+                        .frameOptions(f -> f.deny())
+                        .contentTypeOptions(c -> {})
+                        .httpStrictTransportSecurity(hsts -> hsts
+                                .includeSubDomains(true)
+                                .maxAgeInSeconds(31_536_000)
+                        )
+                        .referrerPolicy(r -> r
+                                .policy(ReferrerPolicyHeaderWriter.ReferrerPolicy.STRICT_ORIGIN_WHEN_CROSS_ORIGIN)
+                        )
+                        .permissionsPolicy(p -> p
+                                .policy("camera=(), microphone=(), geolocation=(), payment=()")
+                        )
+                )
                 .authorizeHttpRequests(auth -> auth
-                        // Liberar de forma explícita y total las rutas de autenticación
-                        .requestMatchers("/api/auth/**", "/auth/**").permitAll()
-                        // Rutas protegidas de administración
+                        .requestMatchers(
+                                "/health",
+                                "/api/auth/login",
+                                "/api/auth/logout",
+                                "/api/auth/me",
+                                "/api/auth/expirada"
+                        ).permitAll()
                         .requestMatchers("/api/admin/**").hasAuthority("ROLE_ADMIN")
-                        // Cualquier otra petición requiere token válido
                         .anyRequest().authenticated()
                 )
-
-                // 5. Inyección del proveedor de datos
+                .logout(logout -> logout
+                        .logoutUrl("/api/auth/logout")
+                        .deleteCookies("PRODE_SESSION")
+                        .clearAuthentication(true)
+                        .invalidateHttpSession(true)
+                        .logoutSuccessHandler((req, res, auth) -> res.setStatus(200))
+                )
                 .authenticationProvider(authenticationProvider())
-
-                // 6. Orden estricto de filtros interceptores
-                .addFilterBefore(rateLimitFilter, UsernamePasswordAuthenticationFilter.class)
-                .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
+                .addFilterBefore(rateLimitFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
     }
 
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
-        CorsConfiguration configuration = new CorsConfiguration();
-
-        // Orígenes permitidos sin depender de variables externas
-        configuration.setAllowedOrigins(Arrays.asList(
-                "https://diegomr949.github.io",
-                "http://localhost:3000",
-                "http://localhost:5173"
-        ));
-
-        configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS"));
-        configuration.setAllowedHeaders(Arrays.asList("Authorization", "Content-Type", "Cache-Control", "X-Requested-With"));
-        configuration.setExposedHeaders(Arrays.asList("Authorization"));
-        configuration.setAllowCredentials(true);
-
+        CorsConfiguration config = new CorsConfiguration();
+        config.setAllowedOrigins(List.of(allowedOrigins.split(",")));
+        config.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
+        config.setAllowedHeaders(List.of("Content-Type", "X-Requested-With"));
+        config.setAllowCredentials(true);
+        config.setMaxAge(3600L);
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
-        source.registerCorsConfiguration("/**", configuration);
+        source.registerCorsConfiguration("/api/**", config);
         return source;
     }
 
@@ -95,17 +102,18 @@ public class SecurityConfig {
         DaoAuthenticationProvider p = new DaoAuthenticationProvider();
         p.setUserDetailsService(userDetailsService);
         p.setPasswordEncoder(passwordEncoder());
-        p.setHideUserNotFoundExceptions(false); // Revelará errores de usuario real en logs de Render
+        p.setHideUserNotFoundExceptions(true);
         return p;
     }
 
     @Bean
     public PasswordEncoder passwordEncoder() {
-        return new BCryptPasswordEncoder(12); // Coincide con los 12 rounds de Neon
+        return new BCryptPasswordEncoder(12);
     }
 
     @Bean
-    public AuthenticationManager authenticationManager(AuthenticationConfiguration cfg) throws Exception {
+    public AuthenticationManager authenticationManager(AuthenticationConfiguration cfg)
+            throws Exception {
         return cfg.getAuthenticationManager();
     }
 }

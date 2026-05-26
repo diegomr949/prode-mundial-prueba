@@ -2,6 +2,7 @@ package ar.org.cpcemza.prodemundial.controller;
 
 import ar.org.cpcemza.prodemundial.dto.*;
 import ar.org.cpcemza.prodemundial.service.AdminService;
+import ar.org.cpcemza.prodemundial.service.AuthService;
 import ar.org.cpcemza.prodemundial.service.CalculoPuntosService;
 import ar.org.cpcemza.prodemundial.service.EquipoService;
 import jakarta.validation.Valid;
@@ -21,6 +22,7 @@ import java.util.Map;
 public class AdminController {
 
     private final AdminService         adminService;
+    private final AuthService          authService;
     private final CalculoPuntosService calculoPuntosService;
     private final EquipoService        equipoService;
 
@@ -36,6 +38,20 @@ public class AdminController {
         return ResponseEntity.ok(adminService.getDashboardUsuario(id));
     }
 
+    /**
+     * POST /api/admin/usuarios
+     * Crea un usuario nuevo. Solo el admin puede hacerlo.
+     * El registro público fue eliminado del sistema.
+     */
+    @PostMapping("/usuarios")
+    public ResponseEntity<AuthResponseDTO> crearUsuario(
+            @Valid @RequestBody CrearUsuarioRequestDTO dto
+    ) {
+        return ResponseEntity
+                .status(HttpStatus.CREATED)
+                .body(authService.crearUsuario(dto));
+    }
+
     @PutMapping("/usuarios/{id}/reset-password")
     public ResponseEntity<Map<String, String>> resetPassword(
             @PathVariable Long id,
@@ -45,12 +61,6 @@ public class AdminController {
         return ResponseEntity.ok(Map.of("mensaje", "Contraseña actualizada correctamente."));
     }
 
-    /**
-     * PUT /api/admin/usuarios/{id}/area
-     * Asigna o corrige el área de un usuario.
-     * Body: { "area": "Contabilidad" }
-     * Para limpiarla: { "area": null } o { "area": "" }
-     */
     @PutMapping("/usuarios/{id}/area")
     public ResponseEntity<Map<String, String>> actualizarArea(
             @PathVariable Long id,
@@ -60,11 +70,6 @@ public class AdminController {
         return ResponseEntity.ok(Map.of("mensaje", "Área actualizada correctamente."));
     }
 
-    /**
-     * GET /api/admin/areas
-     * Lista todas las áreas distintas registradas.
-     * Útil para cargar el dropdown de filtros en el frontend.
-     */
     @GetMapping("/areas")
     public ResponseEntity<List<String>> getAreas() {
         return ResponseEntity.ok(adminService.getAreas());
@@ -77,17 +82,14 @@ public class AdminController {
             @PathVariable Long id,
             @Valid @RequestBody ResultadoRequestDTO dto
     ) {
-        calculoPuntosService.procesarResultados(id, dto.getGolesLocal(), dto.getGolesVisitante());
+        calculoPuntosService.procesarResultados(
+                id, dto.getGolesLocal(), dto.getGolesVisitante()
+        );
         return ResponseEntity.ok(Map.of("mensaje", "Resultado procesado y puntos calculados."));
     }
 
     /* ── Clasificación ────────────────────────────────── */
 
-    /**
-     * GET /api/admin/clasificacion
-     * GET /api/admin/clasificacion?area=Contabilidad
-     * Devuelve el ranking general o filtrado por área.
-     */
     @GetMapping("/clasificacion")
     public ResponseEntity<List<ClasificacionDTO>> getClasificacion(
             @RequestParam(required = false) String area
@@ -105,7 +107,8 @@ public class AdminController {
             @PathVariable Long id,
             @Valid @RequestBody JugadorRequestDTO dto
     ) {
-        return ResponseEntity.status(HttpStatus.CREATED)
+        return ResponseEntity
+                .status(HttpStatus.CREATED)
                 .body(equipoService.agregarJugador(id, dto));
     }
 

@@ -17,115 +17,79 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
- * Rate limiting por IP usando ventana deslizante simple (token bucket).
- *
- * Protege especialmente el endpoint de login contra:
- *  - Ataques de fuerza bruta de contraseñas
- *  - Credential stuffing
- *  - Enumeración de usuarios
- *
- * En producción con múltiples instancias, reemplazar el ConcurrentHashMap
- * por Redis usando Spring Data Redis + Bucket4j-Redis.
+ * Rate limiting por IP.
+ * Sigue siendo necesario aunque no haya JWT —
+ * protege el endpoint de login contra fuerza bruta.
  */
 @Slf4j
 @Component
 public class RateLimitFilter extends OncePerRequestFilter {
 
     @Value("${rate-limit.auth-requests-per-minute:10}")
-    private int authRequestsPerMinute;
+    private int authLimit;
 
     @Value("${rate-limit.api-requests-per-minute:120}")
-    private int apiRequestsPerMinute;
+    private int apiLimit;
 
-    // Map: IP → (contador, ventana_inicio_ms)
     private final ConcurrentHashMap<String, long[]> authBuckets = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, long[]> apiBuckets  = new ConcurrentHashMap<>();
-
-    private static final long WINDOW_MS = 60_000L; // 1 minuto
+    private static final long WINDOW_MS = 60_000L;
+    private final AtomicInteger cleanupCounter = new AtomicInteger(0);
 
     @Override
-    protected void doFilterInternal(HttpServletRequest request,
-                                    HttpServletResponse response,
+    protected void doFilterInternal(HttpServletRequest req,
+                                    HttpServletResponse res,
                                     FilterChain chain)
             throws ServletException, IOException {
 
-        // 👈 LA CLAVE: Si es un Preflight (OPTIONS), dejar pasar de largo de inmediato
-        if ("OPTIONS".equalsIgnoreCase(request.getMethod())) {
-            chain.doFilter(request, response);
-            return;
-        }
+        final String ip   = getIp(req);
+        final String path = req.getRequestURI();
 
-        final String ip   = getClientIp(request);
-        final String path = request.getRequestURI();
-
-        // Aplicar rate limit diferenciado por tipo de endpoint
-        // (Asegurate de que coincida con cómo mapeaste tus controladores)
-        if (path.startsWith("/api/auth/") || path.startsWith("/auth/")) {
-            if (!isAllowed(ip, authBuckets, authRequestsPerMinute)) {
-                log.warn("[RateLimit] Auth bloqueado - IP: {} Path: {}", ip, path);
-                rejectRequest(response, "Demasiados intentos. Esperá 1 minuto e intentá de nuevo.");
+        if (path.startsWith("/api/auth/")) {
+            if (!isAllowed(ip, authBuckets, authLimit)) {
+                log.warn("[RateLimit] Auth bloqueado — IP: {}", ip);
+                reject(res, "Demasiados intentos. Esperá 1 minuto.");
                 return;
             }
         } else if (path.startsWith("/api/")) {
-            if (!isAllowed(ip, apiBuckets, apiRequestsPerMinute)) {
-                log.warn("[RateLimit] API bloqueado - IP: {} Path: {}", ip, path);
-                rejectRequest(response, "Límite de solicitudes alcanzado. Intentá más tarde.");
+            if (!isAllowed(ip, apiBuckets, apiLimit)) {
+                reject(res, "Límite de solicitudes alcanzado.");
                 return;
             }
         }
 
-        chain.doFilter(request, response);
+        if (cleanupCounter.incrementAndGet() % 5_000 == 0) cleanup();
+        chain.doFilter(req, res);
     }
 
-    private boolean isAllowed(String ip,
-                               ConcurrentHashMap<String, long[]> buckets,
-                               int maxRequests) {
+    private boolean isAllowed(String ip, ConcurrentHashMap<String, long[]> buckets, int max) {
         final long now = Instant.now().toEpochMilli();
-
-        // [0] = timestamp inicio de ventana, [1] = contador de requests
-        long[] bucket = buckets.compute(ip, (k, existing) -> {
-            if (existing == null || now - existing[0] > WINDOW_MS) {
-                return new long[]{ now, 1L };          // Nueva ventana
-            }
-            existing[1]++;
-            return existing;
+        long[] b = buckets.compute(ip, (k, e) -> {
+            if (e == null || now - e[0] > WINDOW_MS) return new long[]{ now, 1L };
+            e[1]++;
+            return e;
         });
-
-        return bucket[1] <= maxRequests;
+        return b[1] <= max;
     }
 
-    private String getClientIp(HttpServletRequest request) {
-        // Leer IP real detrás de proxies/load balancers (Render, Railway, Nginx)
-        // Solo confiar en estos headers si el proxy es de confianza
-        String ip = request.getHeader("X-Forwarded-For");
-        if (ip != null && !ip.isBlank()) {
-            // X-Forwarded-For puede ser "client, proxy1, proxy2" — tomar el primero
-            return ip.split(",")[0].trim();
-        }
-        ip = request.getHeader("X-Real-IP");
+    private String getIp(HttpServletRequest req) {
+        String ip = req.getHeader("X-Forwarded-For");
+        if (ip != null && !ip.isBlank()) return ip.split(",")[0].trim();
+        ip = req.getHeader("X-Real-IP");
         if (ip != null && !ip.isBlank()) return ip.trim();
-        return request.getRemoteAddr();
+        return req.getRemoteAddr();
     }
 
-    private void rejectRequest(HttpServletResponse response, String message)
-            throws IOException {
-        response.setStatus(HttpStatus.TOO_MANY_REQUESTS.value()); // 429
-        response.setContentType(MediaType.APPLICATION_JSON_VALUE);
-        response.setHeader("Retry-After", "60");
-        response.getWriter().write(
-            String.format("{\"status\":429,\"error\":\"%s\"}", message)
-        );
+    private void reject(HttpServletResponse res, String msg) throws IOException {
+        res.setStatus(HttpStatus.TOO_MANY_REQUESTS.value());
+        res.setContentType(MediaType.APPLICATION_JSON_VALUE);
+        res.setHeader("Retry-After", "60");
+        res.getWriter().write("{\"status\":429,\"error\":\"" + msg + "\"}");
     }
 
-    // Limpieza periódica para evitar memory leak (cada 10000 requests aprox)
-    // En producción usar @Scheduled en lugar de este enfoque
-    private final AtomicInteger cleanupCounter = new AtomicInteger(0);
-
-    private void maybeCleanup() {
-        if (cleanupCounter.incrementAndGet() % 10_000 == 0) {
-            final long now = Instant.now().toEpochMilli();
-            authBuckets.entrySet().removeIf(e -> now - e.getValue()[0] > WINDOW_MS * 10);
-            apiBuckets.entrySet().removeIf(e -> now - e.getValue()[0] > WINDOW_MS * 10);
-        }
+    private void cleanup() {
+        final long now = Instant.now().toEpochMilli();
+        authBuckets.entrySet().removeIf(e -> now - e.getValue()[0] > WINDOW_MS * 10);
+        apiBuckets.entrySet().removeIf(e -> now - e.getValue()[0] > WINDOW_MS * 10);
     }
 }
