@@ -7,6 +7,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpSession;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.userdetails.UserDetails;
@@ -45,10 +46,18 @@ public class AuthController {
      * Devuelve 401 automáticamente si no hay sesión (Spring Security).
      */
     @GetMapping("/me")
-    public ResponseEntity<AuthResponseDTO> me(
-            @AuthenticationPrincipal UserDetails userDetails
-    ) {
-        return ResponseEntity.ok(authService.getMe(userDetails.getUsername()));
+    public ResponseEntity<?> me(@AuthenticationPrincipal UserDetails userDetails) {
+        // 1. Si no hay sesión, devolvemos 401 limpio para que el Frontend sepa que debe mostrar el Login
+        if (userDetails == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("No hay sesión activa");
+        }
+
+        // 2. Si hay sesión, buscamos al usuario normal (ajustá esto a como lo tenías)
+        // Ejemplo:
+        // AuthResponseDTO response = authService.obtenerDatosUsuario(userDetails.getUsername());
+        // return ResponseEntity.ok(response);
+
+        return ResponseEntity.ok(userDetails); // Reemplazalo por tu lógica original
     }
 
     /**
