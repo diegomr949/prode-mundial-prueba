@@ -11,18 +11,22 @@ import java.util.Optional;
 @Repository
 public interface UsuarioRepository extends JpaRepository<Usuario, Long> {
 
-    Optional<Usuario> findByEmailIgnoreCase(String email);
+    // Usado por: UserDetailsServiceImpl, AuthenticatedUserResolver, AuthService
+    Optional<Usuario> findByEmail(String email);
 
+    // Usado por: AuthService al registrar
     boolean existsByEmail(String email);
-    // Ranking general (desempate: más plenos → registro más antiguo)
+
+    // Usado por: AdminService — ranking general
+    // Desempate: más plenos → registro más antiguo
     List<Usuario> findAllByOrderByPuntosTotalesDescPlenosTotalesDescFechaRegistroAsc();
 
-    // Ranking filtrado por área — ignora mayúsculas/minúsculas
+    // Usado por: AdminService — ranking filtrado por área
     List<Usuario> findByAreaIgnoreCaseOrderByPuntosTotalesDescPlenosTotalesDescFechaRegistroAsc(
             String area
     );
 
-    // Lista de áreas distintas cargadas (para el filtro del ranking)
+    // Usado por: AdminService — lista de áreas para el filtro del ranking
     @Query("SELECT DISTINCT u.area FROM Usuario u WHERE u.area IS NOT NULL ORDER BY u.area ASC")
     List<String> findDistinctAreas();
 }
