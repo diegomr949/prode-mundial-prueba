@@ -21,7 +21,7 @@ public class Usuario {
     @Column(nullable = false, unique = true)
     private String email;
 
-    @Column(nullable = false)
+    @Column(name = "password_hash", nullable = false) // 👈 Agregá el name explícito
     private String passwordHash;
 
     @Column(nullable = false)
