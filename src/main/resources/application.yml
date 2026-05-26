@@ -86,5 +86,6 @@ logging:
       servlet:
         session:
           cookie:
-            same-site: none  # Permite que la cookie viaje a dominios cruzados
-            secure: true     # Obliga a que viaje solo por HTTPS (Render ya lo tiene)
+            same-site: none
+            secure: true # Obligatorio para HTTPS
+            http-only: true

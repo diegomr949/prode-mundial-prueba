@@ -48,8 +48,7 @@ public class SecurityConfig {
 
                 .sessionManagement(s -> s
                         .sessionCreationPolicy(SessionCreationPolicy.IF_REQUIRED)
-                        .maximumSessions(3)
-                        .expiredUrl("/api/auth/expirada")
+                        .sessionFixation().migrateSession() // Protege contra hijacking
                 )
 
                 .headers(h -> h
