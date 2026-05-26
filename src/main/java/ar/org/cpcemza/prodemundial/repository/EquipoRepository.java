@@ -12,7 +12,8 @@ import java.util.Optional;
 @Repository
 public interface EquipoRepository extends JpaRepository<Equipo, Long> {
 
-    // Ordenar por grupo para que el frontend pueda agruparlos
+    // 👈 SOLUCIÓN: Trae los 48 equipos y sus estadísticas en UNA SOLA query consolidada
+    @Query("SELECT e FROM Equipo e LEFT JOIN FETCH e.estadistica ORDER BY e.grupo ASC, e.nombre ASC")
     List<Equipo> findAllByOrderByGrupoAscNombreAsc();
 
     Optional<Equipo> findByNombre(String nombre);
