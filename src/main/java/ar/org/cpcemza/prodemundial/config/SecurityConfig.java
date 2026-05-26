@@ -4,6 +4,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.AuthenticationProvider;
 import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
@@ -40,12 +41,16 @@ public class SecurityConfig {
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
                 .csrf(AbstractHttpConfigurer::disable)
+
+                // CORS debe procesarse ANTES que cualquier regla de seguridad
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
+
                 .sessionManagement(s -> s
                         .sessionCreationPolicy(SessionCreationPolicy.IF_REQUIRED)
                         .maximumSessions(3)
                         .expiredUrl("/api/auth/expirada")
                 )
+
                 .headers(h -> h
                         .frameOptions(f -> f.deny())
                         .contentTypeOptions(c -> {})
@@ -60,7 +65,11 @@ public class SecurityConfig {
                                 .policy("camera=(), microphone=(), geolocation=(), payment=()")
                         )
                 )
+
                 .authorizeHttpRequests(auth -> auth
+                        // Preflight OPTIONS — SIEMPRE permitir antes que todo
+                        .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
+                        // Rutas públicas
                         .requestMatchers(
                                 "/health",
                                 "/api/auth/login",
@@ -68,9 +77,12 @@ public class SecurityConfig {
                                 "/api/auth/me",
                                 "/api/auth/expirada"
                         ).permitAll()
+                        // Solo admin
                         .requestMatchers("/api/admin/**").hasAuthority("ROLE_ADMIN")
+                        // Todo lo demás requiere sesión activa
                         .anyRequest().authenticated()
                 )
+
                 .logout(logout -> logout
                         .logoutUrl("/api/auth/logout")
                         .deleteCookies("PRODE_SESSION")
@@ -78,6 +90,7 @@ public class SecurityConfig {
                         .invalidateHttpSession(true)
                         .logoutSuccessHandler((req, res, auth) -> res.setStatus(200))
                 )
+
                 .authenticationProvider(authenticationProvider())
                 .addFilterBefore(rateLimitFilter, UsernamePasswordAuthenticationFilter.class);
 
@@ -87,13 +100,35 @@ public class SecurityConfig {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration config = new CorsConfiguration();
+
+        // Orígenes permitidos desde variable de entorno
+        // En desarrollo local también podés agregar http://localhost:5500, etc.
         config.setAllowedOrigins(List.of(allowedOrigins.split(",")));
+
+        // Todos los métodos incluyendo OPTIONS para preflights
         config.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
-        config.setAllowedHeaders(List.of("Content-Type", "X-Requested-With"));
+
+        // Headers que envía el frontend
+        config.setAllowedHeaders(List.of(
+                "Content-Type",
+                "X-Requested-With",
+                "Accept",
+                "Origin",
+                "Access-Control-Request-Method",
+                "Access-Control-Request-Headers"
+        ));
+
+        // Headers que el frontend puede leer en la respuesta
+        config.setExposedHeaders(List.of("Set-Cookie"));
+
+        // CRÍTICO con sesiones — el navegador envía la cookie
         config.setAllowCredentials(true);
+
+        // Cache del preflight por 1 hora
         config.setMaxAge(3600L);
+
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
-        source.registerCorsConfiguration("/api/**", config);
+        source.registerCorsConfiguration("/**", config);  // /** en vez de /api/**
         return source;
     }
 
