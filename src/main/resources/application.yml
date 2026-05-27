@@ -54,13 +54,13 @@ server:
     accept-count:       100
     connection-timeout: 20000
   forward-headers-strategy: framework
-  # Cookie de sesión: HttpOnly + Secure + SameSite=None para cross-origin
+  # Cookie de sesión: HttpOnly + Secure en producción
   servlet:
     session:
       cookie:
         http-only: true
-        secure:    true          # obligatorio con SameSite=None
-        same-site: None          # permite enviar cookie entre dominios distintos
+        secure:    ${SESSION_COOKIE_SECURE:true}
+        same-site: Lax
         name:      PRODE_SESSION
 
 # ── CORS ──────────────────────────────────────────────────
@@ -81,3 +81,11 @@ logging:
     org.hibernate.SQL:             ${SQL_LOG_LEVEL:WARN}
   pattern:
     console: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"
+
+    server:
+      servlet:
+        session:
+          cookie:
+            same-site: none
+            secure: true # Obligatorio para HTTPS
+            http-only: true
