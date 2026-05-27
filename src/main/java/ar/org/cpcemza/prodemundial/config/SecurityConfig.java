@@ -8,7 +8,6 @@ import org.springframework.http.HttpMethod;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.AuthenticationProvider;
 import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
-import org.springframework.security.config.annotation.authentication.builders.AuthenticationManagerBuilder;
 import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
@@ -48,7 +47,8 @@ public class SecurityConfig {
 
                 .sessionManagement(s -> s
                         .sessionCreationPolicy(SessionCreationPolicy.IF_REQUIRED)
-                        .sessionFixation().migrateSession() // Protege contra hijacking
+                        .maximumSessions(3)
+                        .expiredUrl("/api/auth/expirada")
                 )
 
                 .headers(h -> h
@@ -101,22 +101,34 @@ public class SecurityConfig {
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration config = new CorsConfiguration();
 
-        // ACÁ ESTÁ LA CLAVE: Agregamos el dominio exacto que te dio Cloudflare
-        config.setAllowedOrigins(List.of(
-                "https://prodecpceprueba1.diegomr949.workers.dev", // 👈 Tu URL real actual
-                "https://prodecpceprueba1.pages.dev",              // Por si acaso usás esta después
-                "http://localhost:8080",
-                "http://localhost:3000"
+        // Orígenes permitidos desde variable de entorno
+        // En desarrollo local también podés agregar http://localhost:5500, etc.
+        config.setAllowedOrigins(List.of(allowedOrigins.split(",")));
+
+        // Todos los métodos incluyendo OPTIONS para preflights
+        config.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
+
+        // Headers que envía el frontend
+        config.setAllowedHeaders(List.of(
+                "Content-Type",
+                "X-Requested-With",
+                "Accept",
+                "Origin",
+                "Access-Control-Request-Method",
+                "Access-Control-Request-Headers"
         ));
 
-        config.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
-        config.setAllowedHeaders(List.of("*"));
+        // Headers que el frontend puede leer en la respuesta
         config.setExposedHeaders(List.of("Set-Cookie"));
+
+        // CRÍTICO con sesiones — el navegador envía la cookie
         config.setAllowCredentials(true);
+
+        // Cache del preflight por 1 hora
         config.setMaxAge(3600L);
 
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
-        source.registerCorsConfiguration("/**", config);
+        source.registerCorsConfiguration("/**", config);  // /** en vez de /api/**
         return source;
     }
 
@@ -135,13 +147,8 @@ public class SecurityConfig {
     }
 
     @Bean
-    public AuthenticationManager authenticationManager(HttpSecurity http) throws Exception {
-        AuthenticationManagerBuilder authenticationManagerBuilder =
-                http.getSharedObject(AuthenticationManagerBuilder.class);
-
-        // Forzamos explícitamente a usar tu proveedor conectado a Neon
-        authenticationManagerBuilder.authenticationProvider(authenticationProvider());
-
-        return authenticationManagerBuilder.build();
+    public AuthenticationManager authenticationManager(AuthenticationConfiguration cfg)
+            throws Exception {
+        return cfg.getAuthenticationManager();
     }
 }
